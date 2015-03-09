@@ -19,41 +19,48 @@
  *
  */
 
-//@ini_set( "max_execution_time", 120 );
- 
-if ( IS_INCLUDED !== true ) die( _("Unable to load system configuration information.") );
-
-require_once( "./lib/ReportMaker.class.php" );
-
-?>
-<h2><?php print _("Export Full Inventory for iTalc GlobalConfig.xml file")."  <a href=\"export.php?type=csv\" target=\"_blank\"><img class=\"noBorder\" src=\"images/csv.png\" /></a>"; ?></h2>
-<?php
-
-$report = new ReportMaker();
-$report->addCSVCell(_("Host Name"));
-$report->addCSVCell(_("Host IP"));
-$report->addCSVCell(_("Host MAC"));  	
-$report->addCSVCell(_("Export iTalc"));		
-$report->endCSVLine();												
+class italcexport extends FOGBase
+{
+        public function __construct()
+        {
+                parent::__construct();
+                $this->makeReport();
+        }
+        private function makeReport()
+        {?>
+		<h2><?php print _("Export Full Inventory for iTalc GlobalConfig.xml file")."&nbsp;&nbsp;&nbsp;<a href=\"export.php?type=csv\" target=\"_blank\"><img class=\"noBorder\" src=\"images/csv.png\" /></a>&nbsp;&nbsp;&nbsp;<a href=\"export.php?type=pdf\" target=\"_blank\"><img class=\"noBorder\" src=\"images/pdf.png\" /></a>"; ?></h2><?php
 	
-$sql = "SELECT 
-		* 
-	FROM 
-		hosts  
-		inner join inventory on ( hosts.hostID = inventory.iHostID )
-		left outer join images on ( hostImage = imageID )
-		left outer join supportedOS on ( hostOS = osID )";
-$res = mysql_query( $sql, $conn ) or die( mysql_error() );
+		$Hosts = $this->FOGCore->getClass('HostManager')->find();
+		
+		$report = new ReportMaker();
+		$report->addCSVCell(_("Host Name"));
+		$report->addCSVCell(_("Host IP"));
+		$report->addCSVCell(_("Host MAC"));  	
+		$report->addCSVCell(_("Export iTalc"));		
+		$report->endCSVLine();												
+		
+		$report->appendHTML('<table cellpadding="0" cellspacing="0" border="0" width="100%">');
+		$report->appendHTML('<tr bgcolor="#BDBDBD"><td><b>Hostname</b></td><td><b>MAC</b></td><td><b>iTalc-Export</b></td></tr>');
+		
+		$cnt = 0;
+		foreach ($Hosts AS $Host)
+		{	
+			$bg = ($cnt++ % 2 == 0 ? "#E7E7E7" : '');	
+			$report->addCSVCell($Host->get('name'));
+			$report->addCSVCell($Host->get('ip'));
+			$report->addCSVCell($Host->get('mac'));
+			$report->addCSVCell("<client hostname=\"".$Host->get('name')."\" mac=\"".$Host->get('mac')."\" type=\"0\" name=\"".$Host->get('name')."\"/>");
+			$report->endCSVLine();
+		
+			$report->appendHTML('<tr bgcolor="'.$bg.'"><td>'.$Host->get('name').'</td><td>'.$Host->get('mac').'</td><td><span style="font-size:10px;">'.'"&lt;client hostname="'.$Host->get('name').'" mac="'.$Host->get('mac').'" type="0" name="'.$Host->get('name').'"/&gt;"</span></td></tr>');
+		}
+		
+		$report->appendHTML('</table>');
+		$report->outputReport(ReportMaker::FOG_REPORT_HTML);
 
-while ( $ar = mysql_fetch_array( $res ) )
-{																																					
-	$report->addCSVCell($ar["hostName"]);
-	$report->addCSVCell($ar["hostIP"]);
-	$report->addCSVCell($ar["hostMAC"]);		
-	$report->addCSVCell("<client hostname=\"".$ar["hostName"]."\" mac=\"".$ar["hostMAC"]."\" type=\"0\" name=\"".$ar["hostName"]."\"/>");
-
-	$report->endCSVLine();						
+		$_SESSION["foglastreport"] = serialize( $report );
+		
+		echo ( "<p>"._("Reporting Complete!")."</p>" );
+	}
 }
-echo ( "<p>"._("Reporting Complete!")."</p>" );
-
-$_SESSION["foglastreport"] = serialize( $report );
+$italcexport = new italcexport();
